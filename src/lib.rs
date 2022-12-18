@@ -1,6 +1,4 @@
-//! # serde_json_matcher
-//!
-//! Implements a matcher for `serde_json::Value`s using the MongoDB query language.
+//! Implements a matcher for `serde_json::Value`s using the Mongo Query Language.
 //!
 //! Currently supports `$eq`, `$in`, `$ne`, `$nin`, `$and`, `$not`, `$or`, `$type` and `$nor`.
 
@@ -27,9 +25,9 @@ macro_rules! operator_struct {
             val: $type,
         }
 
-        impl Into<ObjMatcher> for $struct_name {
-            fn into(self) -> ObjMatcher {
-                ObjMatcher::$obj_matcher_case(self)
+        impl From<$struct_name> for ObjMatcher {
+            fn from(obj: $struct_name) -> ObjMatcher {
+                ObjMatcher::$obj_matcher_case(obj)
             }
         }
     };
@@ -40,7 +38,7 @@ operator_struct!(Eq, EqOperator, "$eq");
 impl MatchesValue for EqOperator {
     #[inline]
     fn matches(&self, other: &Value) -> bool {
-        return self.val.matches(other);
+        self.val.matches(other)
     }
 }
 
@@ -55,7 +53,7 @@ impl MatchesValue for InOperator {
             }
         }
 
-        return false;
+        false
     }
 }
 
@@ -64,7 +62,7 @@ operator_struct!(Ne, NeOperator, "$ne");
 impl MatchesValue for NeOperator {
     #[inline]
     fn matches(&self, other: &Value) -> bool {
-        return !self.val.matches(other);
+        !self.val.matches(other)
     }
 }
 
@@ -79,7 +77,7 @@ impl MatchesValue for NinOperator {
             }
         }
 
-        return true;
+        true
     }
 }
 
@@ -94,7 +92,7 @@ impl MatchesValue for AndOperator {
             }
         }
 
-        return true;
+        true
     }
 }
 
@@ -107,7 +105,7 @@ impl MatchesValue for NotOperator {
             return false;
         }
 
-        return true;
+        true
     }
 }
 
@@ -124,7 +122,7 @@ impl MatchesValue for OrOperator {
             }
         }
 
-        return false;
+        false
     }
 }
 
@@ -165,7 +163,7 @@ impl MatchesValue for TypeOperator {
                 return true;
             }
         }
-        return false;
+        false
     }
 }
 
@@ -195,6 +193,7 @@ pub enum ObjMatcher {
 }
 
 impl ObjMatcher {
+    #[must_use]
     pub fn matches(&self, other: &Value) -> bool {
         MatchesValue::matches(self, other)
     }
@@ -238,7 +237,7 @@ impl MatchesValue for ObjMatcher {
                 Some(obj_matcher) => obj_matcher.matches(other),
                 None => match value {
                     Value::Number(n) => match other {
-                        Value::Number(n2) => &n == &n2,
+                        Value::Number(n2) => n == n2,
                         _ => false,
                     },
                     Value::Object(o) => {
@@ -247,10 +246,8 @@ impl MatchesValue for ObjMatcher {
                                 if !obj_matcher.matches(&other[key]) {
                                     return false;
                                 }
-                            } else {
-                                if value != &other[key] {
-                                    return false;
-                                }
+                            } else if value != &other[key] {
+                                return false;
                             }
                         }
                         true
@@ -289,74 +286,71 @@ mod tests {
     #[test]
     pub fn test_operator_type() {
         let matcher = from_str(r#"{"a":{"$type":["number", "bool"]}}"#).unwrap();
-        assert_eq!(matcher.matches(&json!({"a": 1})), true);
-        assert_eq!(matcher.matches(&json!({"a": "hello"})), false);
-        assert_eq!(matcher.matches(&json!({"a": true})), true);
-        assert_eq!(matcher.matches(&json!({"a": true, "b": "ignored"})), true);
+        assert!(matcher.matches(&json!({"a": 1})));
+        assert!(!matcher.matches(&json!({"a": "hello"})));
+        assert!(matcher.matches(&json!({"a": true})));
+        assert!(matcher.matches(&json!({"a": true, "b": "ignored"})));
 
         let matcher = from_str(r#"{"a":{"$type":["array"]}}"#).unwrap();
-        assert_eq!(matcher.matches(&json!({"a": true})), false);
-        assert_eq!(matcher.matches(&json!({"a": [1,2,3]})), true);
+        assert!(!matcher.matches(&json!({"a": true})));
+        assert!(matcher.matches(&json!({"a": [1,2,3]})));
 
         let matcher = from_str(r#"{"a":{"$type":["object"]}}"#).unwrap();
-        assert_eq!(matcher.matches(&json!({"a": true})), false);
-        assert_eq!(matcher.matches(&json!({"a": {"hello":"world"}})), true);
+        assert!(!matcher.matches(&json!({"a": true})));
+        assert!(matcher.matches(&json!({"a": {"hello":"world"}})));
     }
 
     #[test]
     pub fn test() {
         let matcher = from_str(r#"{"a":{"$or":[1, 2]}}"#).unwrap();
-        assert_eq!(matcher.matches(&json!({"a": 1})), true);
-        assert_eq!(matcher.matches(&json!({"a": 2})), true);
-        assert_eq!(matcher.matches(&json!({"a": 3})), false);
+        assert!(matcher.matches(&json!({"a": 1})));
+        assert!(matcher.matches(&json!({"a": 2})));
+        assert!(!matcher.matches(&json!({"a": 3})));
     }
 
     #[test]
     pub fn test_in() {
         let matcher = from_str(r#"{"a":{"$in":[1, 2]}}"#).unwrap();
-        assert_eq!(matcher.matches(&json!({"a": 1})), true);
-        assert_eq!(matcher.matches(&json!({"a": 2})), true);
-        assert_eq!(matcher.matches(&json!({"a": 3})), false);
+        assert!(matcher.matches(&json!({"a": 1})));
+        assert!(matcher.matches(&json!({"a": 2})));
+        assert!(!matcher.matches(&json!({"a": 3})));
     }
 
     #[test]
     pub fn test_ne() {
         let matcher = from_str(r#"{"a":{"$ne":1}}"#).unwrap();
-        assert_eq!(matcher.matches(&json!({"a": 1})), false);
-        assert_eq!(matcher.matches(&json!({"a": 2})), true);
-        assert_eq!(matcher.matches(&json!({"a": 3})), true);
-        assert_eq!(matcher.matches(&json!({"a": "string"})), true);
-        assert_eq!(matcher.matches(&json!({"hello": "world"})), true);
+        assert!(!matcher.matches(&json!({"a": 1})));
+        assert!(matcher.matches(&json!({"a": 2})));
+        assert!(matcher.matches(&json!({"a": 3})));
+        assert!(matcher.matches(&json!({"a": "string"})));
+        assert!(matcher.matches(&json!({"hello": "world"})));
     }
 
     #[test]
     pub fn test_nin() {
         let matcher = from_str(r#"{"a":{"$nin":[1]}}"#).unwrap();
-        assert_eq!(matcher.matches(&json!({"a": 1})), false);
-        assert_eq!(matcher.matches(&json!({"a": 2})), true);
-        assert_eq!(matcher.matches(&json!({"a": 3})), true);
-        assert_eq!(matcher.matches(&json!({"a": "string"})), true);
-        assert_eq!(matcher.matches(&json!({"hello": "world"})), true);
+        assert!(!matcher.matches(&json!({"a": 1})));
+        assert!(matcher.matches(&json!({"a": 2})));
+        assert!(matcher.matches(&json!({"a": 3})));
+        assert!(matcher.matches(&json!({"a": "string"})));
+        assert!(matcher.matches(&json!({"hello": "world"})));
     }
 
     #[test]
     pub fn test_and() {
         let matcher = from_str(r#"{"$and": [ {"a":1}, {"b":1} ]}"#).unwrap();
-        assert_eq!(matcher.matches(&json!({"a": 1, "b":1})), true);
-        assert_eq!(
-            matcher.matches(&json!({"a": 1, "b":1, "hello": "world"})),
-            true
-        );
-        assert_eq!(matcher.matches(&json!({"a": 1})), false);
-        assert_eq!(matcher.matches(&json!({"b": 1})), false);
-        assert_eq!(matcher.matches(&json!({"hello": "world"})), false);
+        assert!(matcher.matches(&json!({"a": 1, "b":1})));
+        assert!(matcher.matches(&json!({"a": 1, "b":1, "hello": "world"})));
+        assert!(!matcher.matches(&json!({"a": 1})));
+        assert!(!matcher.matches(&json!({"b": 1})));
+        assert!(!matcher.matches(&json!({"hello": "world"})));
     }
 
     #[test]
     pub fn test1() {
         let matcher = from_str(r#"{"a":{"$type":["number"]}}"#).unwrap();
-        assert_eq!(matcher.matches(&json!({"a": 1})), true);
-        assert_eq!(matcher.matches(&json!({"a": "hello"})), false);
+        assert!(matcher.matches(&json!({"a": 1})));
+        assert!(!matcher.matches(&json!({"a": "hello"})));
     }
 
     #[test]
@@ -364,7 +358,7 @@ mod tests {
         let input = r#"{"$or": [{ "a": {"$or": [ 1, 2 ]} }, { "b": 2 }]}"#;
         let matcher: ObjMatcher = from_str(input).unwrap();
         let val = json!({"a": 1});
-        assert_eq!(matcher.matches(&val), true);
+        assert!(matcher.matches(&val));
     }
 
     #[test]
@@ -372,12 +366,12 @@ mod tests {
         let input = r#"{"$or": [{ "a": {"$or": [ 1, 2 ]} }, { "b": 2 }]}"#;
         let matcher: ObjMatcher = from_str(input).unwrap();
         let val = json!({"a": 2});
-        assert_eq!(matcher.matches(&val), true);
+        assert!(matcher.matches(&val));
         let val = json!({"a": 3});
-        assert_eq!(matcher.matches(&val), false);
+        assert!(!matcher.matches(&val));
         let val = json!({"b": 1});
-        assert_eq!(matcher.matches(&val), false);
+        assert!(!matcher.matches(&val));
         let val = json!({"b": 2});
-        assert_eq!(matcher.matches(&val), true);
+        assert!(matcher.matches(&val));
     }
 }
