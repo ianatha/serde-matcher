@@ -1,11 +1,12 @@
 [package]
-name = "serde-matcher"
-version = "0.1.1"
+name = "serde_json_matcher"
+version = "0.1.2"
 edition = "2021"
 license = "Apache-2.0"
 description = "A library for matching JSON data using a declarative syntax"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+tags = ["serde"]
+repository = "https://github.com/ianatha/serde_json_matcher"
+readme = "README.md"
 
 [dependencies]
 serde = { version = "1.0.151", features = ["derive"] }
