@@ -267,6 +267,14 @@ pub fn from_str(s: &str) -> Result<ObjMatcher, serde_json::Error> {
     }
 }
 
+pub fn from_json(v: Value) -> Result<ObjMatcher, serde_json::Error> {
+    if let Some(obj_matcher) = try_into_operator(v.clone()) {
+        Ok(obj_matcher)
+    } else {
+        Ok(ObjMatcher::Value(v))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
