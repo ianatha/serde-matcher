@@ -1,4 +1,4 @@
-# serde_json_matcher
+# serde-matcher
 
 Implements a matcher for `serde_json::Value`s using the MongoDB query language in Rust.
 
