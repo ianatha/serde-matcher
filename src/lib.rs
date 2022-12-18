@@ -273,6 +273,14 @@ mod tests {
         assert_eq!(matcher.matches(&json!({"a": "hello"})), false);
         assert_eq!(matcher.matches(&json!({"a": true})), true);
         assert_eq!(matcher.matches(&json!({"a": true, "b": "ignored"})), true);
+
+        let matcher = from_str(r#"{"a":{"$type":["array"]}}"#).unwrap();
+        assert_eq!(matcher.matches(&json!({"a": true})), false);
+        assert_eq!(matcher.matches(&json!({"a": [1,2,3]})), true);
+
+        let matcher = from_str(r#"{"a":{"$type":["object"]}}"#).unwrap();
+        assert_eq!(matcher.matches(&json!({"a": true})), false);
+        assert_eq!(matcher.matches(&json!({"a": {"hello":"world"}})), true);
     }
 
     #[test]
@@ -281,6 +289,47 @@ mod tests {
         assert_eq!(matcher.matches(&json!({"a": 1})), true);
         assert_eq!(matcher.matches(&json!({"a": 2})), true);
         assert_eq!(matcher.matches(&json!({"a": 3})), false);
+    }
+
+    #[test]
+    pub fn test_in() {
+        let matcher = from_str(r#"{"a":{"$in":[1, 2]}}"#).unwrap();
+        assert_eq!(matcher.matches(&json!({"a": 1})), true);
+        assert_eq!(matcher.matches(&json!({"a": 2})), true);
+        assert_eq!(matcher.matches(&json!({"a": 3})), false);
+    }
+
+    #[test]
+    pub fn test_ne() {
+        let matcher = from_str(r#"{"a":{"$ne":1}}"#).unwrap();
+        assert_eq!(matcher.matches(&json!({"a": 1})), false);
+        assert_eq!(matcher.matches(&json!({"a": 2})), true);
+        assert_eq!(matcher.matches(&json!({"a": 3})), true);
+        assert_eq!(matcher.matches(&json!({"a": "string"})), true);
+        assert_eq!(matcher.matches(&json!({"hello": "world"})), true);
+    }
+
+    #[test]
+    pub fn test_nin() {
+        let matcher = from_str(r#"{"a":{"$nin":[1]}}"#).unwrap();
+        assert_eq!(matcher.matches(&json!({"a": 1})), false);
+        assert_eq!(matcher.matches(&json!({"a": 2})), true);
+        assert_eq!(matcher.matches(&json!({"a": 3})), true);
+        assert_eq!(matcher.matches(&json!({"a": "string"})), true);
+        assert_eq!(matcher.matches(&json!({"hello": "world"})), true);
+    }
+
+    #[test]
+    pub fn test_and() {
+        let matcher = from_str(r#"{"$and": [ {"a":1}, {"b":1} ]}"#).unwrap();
+        assert_eq!(matcher.matches(&json!({"a": 1, "b":1})), true);
+        assert_eq!(
+            matcher.matches(&json!({"a": 1, "b":1, "hello": "world"})),
+            true
+        );
+        assert_eq!(matcher.matches(&json!({"a": 1})), false);
+        assert_eq!(matcher.matches(&json!({"b": 1})), false);
+        assert_eq!(matcher.matches(&json!({"hello": "world"})), false);
     }
 
     #[test]
