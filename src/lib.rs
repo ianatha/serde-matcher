@@ -194,6 +194,12 @@ pub enum ObjMatcher {
     Value(Value),
 }
 
+impl ObjMatcher {
+    pub fn matches(&self, other: &Value) -> bool {
+        MatchesValue::matches(self, other)
+    }
+}
+
 fn try_into_operator(value: Value) -> Option<ObjMatcher> {
     if let Some(obj) = value.as_object() {
         if obj.contains_key("$eq") {
